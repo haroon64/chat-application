@@ -1,4 +1,5 @@
 from datetime import timedelta
+from fastapi import HTTPException
 from typing import List, Optional
 
 from app.cores.config import configs
@@ -18,18 +19,24 @@ class AuthService(BaseService):
         super().__init__(user_repository)
 
     def sign_in(self, sign_in_info: SignIn) -> Optional[SignInResponse]:
+        
         user = self.user_repository.get_by_email(sign_in_info.email)
         
    
         if user and verify_password(sign_in_info.password, user.password):
+            
             token_lifespan = timedelta(minutes=configs.ACCESS_TOKEN_EXPIRE_MINUTES)
             access_token, expiration_datetime = create_access_token({"sub": user.email}, token_lifespan)
+            
             sign_in_result = SignInResponse(
                 access_token=access_token,
                 expiration=expiration_datetime,
                 user_info=user
             )
             return sign_in_result
+        else:
+              raise HTTPException(status_code=401, detail="Invalid email or password")
+        
 
     def sign_up(self, user_info: SignUp):
         user_token = get_rand_hash()

@@ -26,6 +26,6 @@ class Payload(BaseModel):
 class SignInResponse(BaseModel):
     access_token: str
     expiration: datetime
-    user_info: User
+    user_info: User 
 
 

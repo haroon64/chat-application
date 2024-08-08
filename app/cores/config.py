@@ -44,7 +44,7 @@ class Configs(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 30  # 60 minutes * 24 hours * 30 days = 30 days
 
     # CORS
-    BACKEND_CORS_ORIGINS: List[str] = ["*"]
+    BACKEND_CORS_ORIGINS: List[str] = ["*", "http://localhost:3000"]
 
     # database
     DB: str = os.getenv("DB", "postgresql")
@@ -74,6 +74,7 @@ class Configs(BaseSettings):
 
     class Config:
         case_sensitive = True
+    
 
 
 class TestConfigs(Configs):
