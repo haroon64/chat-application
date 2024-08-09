@@ -8,13 +8,19 @@ from app.util.schema import AllOptional
 
 
 class message_schema(BaseModel):
-    client_id:str
+    sender_id:int
     
     content:str
-    date_time:datetime
+    # date_time:datetime.utcfromtimestamp
     chat_id:str
 
 
 
     class Config:
         orm_mode = True
+
+class get_message(BaseModel):
+    id:int
+    sender_id:int
+    content:str
+    timestamp:datetime

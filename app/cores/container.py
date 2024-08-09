@@ -13,6 +13,7 @@ class Container(containers.DeclarativeContainer):
             "app.api.v1.endpoints.auth",
             "app.api.v1.endpoints.message",
             
+            
             "app.cores.dependencies",
         ]
     )
@@ -20,10 +21,10 @@ class Container(containers.DeclarativeContainer):
     db = providers.Singleton(Database, db_url=configs.DATABASE_URI)
 
     user_repository = providers.Factory(UserRepository, session_factory=db.provided.session)
-    message_reposiory=providers.Factory(MessageRepository, session_factory=db.provided.session)
+    message_repository=providers.Factory(MessageRepository, session_factory=db.provided.session)
    
 
     auth_service = providers.Factory(AuthService, user_repository=user_repository)
     user_service = providers.Factory(UserService, user_repository=user_repository)
-    message_service=providers.Factory(MessageService, message_reposiory=message_reposiory)
+    message_service=providers.Factory(MessageService, message_repository=message_repository)
     

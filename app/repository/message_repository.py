@@ -1,5 +1,5 @@
 from contextlib import AbstractContextManager
-from typing import Callable, Optional
+from typing import Callable, Optional,Dict,List
 from app.cores.exceptions import DuplicatedError, NotFoundError
 
 
@@ -29,4 +29,14 @@ class MessageRepository(BaseRepository):
             except IntegrityError as e:
                 session.rollback()
                 raise DuplicatedError(detail=str(e.orig))
+    def load_message(self,chat_id:str) -> List[Dict]:
+        with self.session_factory() as session:
+            print(1)
+            query = session.query(self.model).filter(self.model.chat_id == chat_id)
+            print(2)
+            messages = query.all()
+            print(3)
+           
+            return messages
 
+    

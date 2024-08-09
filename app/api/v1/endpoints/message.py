@@ -12,6 +12,7 @@ from app.models.message import Message
 from app.schemas.message_schema import message_schema
 from app.cores.container import Container
 from app.services.message_service import MessageService
+from app.schemas.message_schema import  get_message
 
 manager = ConnectionManager()
 
@@ -19,28 +20,32 @@ router = APIRouter(
     prefix="/message",
     tags=["message"],
 )
-@router.websocket("/communicate")
+@router.websocket("/communicate/{chat_id}")
 @inject
-async def websocket_endpoint(websocket: WebSocket, service: MessageService = Depends(Provide[Container.message_service])):
-    await manager.connect(websocket)
-
+async def websocket_endpoint(websocket: WebSocket,chat_id:str, service: MessageService = Depends(Provide[Container.message_service])): 
+    print(1)
+    await manager.connect(websocket,chat_id)
+    print(2)
     try:
         while True:
             data = await websocket.receive_text()
             parsed_data = json.loads(data)
             print(parsed_data)
+          
+           
 
             # Validate and parse data into schema
             message_info = message_schema(
-                client_id=parsed_data.get("client_id"),
-                content=parsed_data.get("content"),
-                date_time=datetime.fromisoformat(parsed_data.get("date_time")),
-                chat_id=parsed_data.get("chat_id")
-            )
-
+                sender_id=parsed_data["client_id"],
+                content=parsed_data["text"],
+                
+                chat_id=parsed_data["chat_id"]
+            ) 
+            
+            
             # Save to database
-            service.save_message(message_info)
-
+            
+            
             # Modify the type property to 'received'
             parsed_data["type"] = "received"
 
@@ -50,7 +55,13 @@ async def websocket_endpoint(websocket: WebSocket, service: MessageService = Dep
             print(response)
             print(json.dumps(response))
 
-            await manager.broadcast(json.dumps(response), sender=websocket)
+            
+            status=await manager.broadcast(json.dumps(response), chat_id,sender=websocket)
+            # Save to database
+            if status:
+             
+                service.save_message(message_info)  
+            
     except WebSocketDisconnect:
         manager.disconnect(websocket)
         try:
@@ -59,3 +70,10 @@ async def websocket_endpoint(websocket: WebSocket, service: MessageService = Dep
         except RuntimeError as e:
             # Handle or log the error if sending fails due to connection being closed
             print(f"Error sending message after disconnect: {e}")
+
+@router.get("/load_messages/{chat_id}",response_model=List[get_message])
+@inject
+async def load_message(chat_id: str, service: MessageService = Depends(Provide[Container.message_service])):
+    return service.get_messages(chat_id)
+
+
