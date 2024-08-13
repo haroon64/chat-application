@@ -41,10 +41,11 @@ const handleLogin = async (e) => {
           password: password
       });
       const client_id=response.data.user_info.id
+      
 
       Cookies.set('token', response.data.access_token, { expires: 6, sameSite: 'strict' });
       Axios.defaults.headers.common['Authorization'] = `Bearer ${Cookies.get('token')}`;
-      navigate('/ChatRoom', { state: { client_id } });
+      navigate('/CreateChatGroup', { state: { client_id } });
   } catch (err) {
       if (err.response && err.response.status === 401) {
           setError('Invalid email or password');

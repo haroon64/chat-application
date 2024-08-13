@@ -6,52 +6,123 @@ function ChatRoom() {
   const [formValue, setFormValue] = useState('');
   const [messages, setMessages] = useState([]);
   const [socket, setSocket] = useState(null);
-  const [chatId, setChatId] = useState('');
+  const [groups, setGroups] = useState([]); // To store group names
+  const [selectedGroup, setSelectedGroup] = useState(''); // Track the selected group ID
+  const [joinedGroupId, setJoinedGroupId] = useState(0); // Track the joined group ID
+  const [error, setError] = useState('');
   const dummy = useRef();
 
-  const SOCKET_URL = `ws://localhost:8000/api/v1/message/communicate`;
-  
+  const SOCKET_URL = `ws://localhost:8000/api/v1/chat/message`;
+  const CHAT_HISTORY_URL = `http://localhost:8000/api/v1/chat/load_messages`;
+  const GROUPS_URL = `http://localhost:8000/api/v1/chat/groups`; // URL to fetch groups
+
   const location = useLocation();
   const clientid = location.state.client_id;
-  console.log(typeof clientid)
 
-  const handlejoin = (chatId) => {
-    console.log(chatId);
+  useEffect(() => {
+    // Fetch the available groups when the component mounts
+    const fetchGroups = async () => {
+      try {
+        const response = await fetch(GROUPS_URL);
+        const data = await response.json();
+        console.log('Fetched groups:', data);
+        if (Array.isArray(data)) {
+          setGroups(data);
+          console.log(groups)
+        } else {
+          console.error('Unexpected data format:', data);
+          setGroups([]);
+        }
+      } catch (error) {
+        console.error('Failed to load groups:', error);
+        setGroups([]);
+      }
+    };
 
-    if (chatId) {
-      const ws = new WebSocket(`${SOCKET_URL}/${chatId}`);
-      console.log(ws)
+    fetchGroups();
+  }, []);
 
+  const fetchChatHistory = async (groupId) => {
+    try {
+      const response = await fetch(`${CHAT_HISTORY_URL}/${groupId}`);
+      const data = await response.json();
+      const previousMessages = data.map((message) =>
+        loadPreviousMessages({ data: message, client_id: clientid })
+      );
+      setMessages(previousMessages);
+    } catch (error) {
+      console.error('Failed to load chat history:', error);
+    }
+  };
+
+  const handleJoin = async (groupId) => {
+    // Ensure groupId is a number
+    const numericGroupId = Number(groupId);
+    if (numericGroupId === joinedGroupId) {
+      setError('You have already joined this chat.');
+      return;
+    }
+  
+    try {
+      if (socket) {
+        // Close the previous WebSocket connection before establishing a new one
+        socket.close();
+      }
+  
+      await fetchChatHistory(numericGroupId);
+  
+      const ws = new WebSocket(`${SOCKET_URL}/${numericGroupId}`);
+  
       ws.onmessage = (event) => {
         try {
           const parsed = JSON.parse(event.data);
           const message = JSON.parse(parsed.message);
           setMessages((prevMessages) => [
             ...prevMessages,
-            { ...message, type: 'received' }
+            { ...message, type: 'received' },
           ]);
         } catch (error) {
           console.error('JSON parse error:', error);
         }
       };
-
+  
       setSocket(ws);
-
-      return () => {
-        ws.close();
-      };
+      setJoinedGroupId(numericGroupId); // Update the joined group ID with the numeric value
+      setError(''); // Clear any previous error messages
+    } catch (error) {
+      console.error('Failed to join chat:', error);
+      setError('Failed to join the chat.');
     }
   };
+    console.log(joinedGroupId)
 
   const sendMessage = (e) => {
     e.preventDefault();
+    console.log(1)
     if (socket && formValue.trim()) {
-      const message = {client_id:clientid ,text: formValue, type: 'sent' ,chat_id:chatId };
+      console.log(2)
+      const message = {
+        client_id: clientid,
+        text: formValue,
+        type: 'sent',
+        groupId: selectedGroup,
+      };
+      console.log(3)
       socket.send(JSON.stringify(message));
       setMessages((prevMessages) => [...prevMessages, message]);
+      console.log(4)
       setFormValue('');
       dummy.current.scrollIntoView({ behavior: 'smooth' });
+      console.log(5)
     }
+  };
+
+  const loadPreviousMessages = ({ data, client_id }) => {
+    const type = data.sender_id === client_id ? 'sent' : 'received';
+    return {
+      text: data.content,
+      type: type,
+    };
   };
 
   return (
@@ -112,7 +183,7 @@ function ChatRoom() {
             padding: 3px;
           }
 
-          .chat-id input {
+          .chat-id select {
             flex: 1;
             padding: 10px;
             border: 1px solid #ddd;
@@ -215,7 +286,7 @@ function ChatRoom() {
             color: #000;
             line-break: anywhere;
             text-align: left;
-        }
+          }
 
           .message img {
             border-radius: 50%;
@@ -247,12 +318,15 @@ function ChatRoom() {
             color: black;
             line-break: anywhere;
             text-align: left;
-        }
+          }
           img {
             width: 40px;
             height: 40px;
             border-radius: 50%;
             margin: 2px 5px;
+          }
+          .warning {
+            color: red; 
           }
         `}
       </style>
@@ -261,15 +335,24 @@ function ChatRoom() {
       </header>
       <div className="container">
         <div className="chat-id">
-          <input
-            value={chatId}
-            onChange={(e) => setChatId(e.target.value)}
-            placeholder="Enter chat ID"
-          />
+        <select
+          value={selectedGroup}
+          onChange={(e) => setSelectedGroup(e.target.value)}
+          >
+          <option value="" disabled>Select a group</option>
+          {Array.isArray(groups) && groups.map((group) => (
+          <option key={group.id} value={group.id}>
+          {group.group_name}
+          </option>
+        ))}
+</select>
+          <div className='warning'>
+            <p>{error}</p>
+          </div>
           <button
             type="button"
-            onClick={() => handlejoin(chatId)}
-            disabled={!chatId}
+            onClick={() => handleJoin(selectedGroup)}
+            disabled={!selectedGroup}
           >
             Join
           </button>
@@ -280,14 +363,14 @@ function ChatRoom() {
           ))}
           <span ref={dummy}></span>
         </main>
-        {chatId && (
+        {selectedGroup && (
           <form onSubmit={sendMessage}>
             <input
               value={formValue}
               onChange={(e) => setFormValue(e.target.value)}
               placeholder="Say something nice"
             />
-            <button type="submit" disabled={!formValue}>
+            <button type="submit" disabled={!formValue} >
               Send
             </button>
           </form>
